@@ -12,6 +12,8 @@ import ftrack
 import ftrack_connect.application
 import ftrack_connect_maya
 
+import settingsManager
+globalSettings = settingsManager.globalSettings()
 
 class LaunchApplicationAction(object):
     '''Discover and launch maya.'''
@@ -171,6 +173,7 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
 
         '''
         applications = []
+        versions = [v.replace('.', '\.') for v in globalSettings.get('FTRACK_CONNECT').get('MAYA')]
 
         if sys.platform == 'darwin':
             prefix = ['/', 'Applications']
@@ -192,12 +195,17 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
             if maya_location:
                 prefix = maya_location
 
+            maya_version_expression = re.compile(
+                r'(?P<version>{})'.format('|'.join(versions))
+            )
+
             applications.extend(self._searchFilesystem(
                 expression=prefix + ['Autodesk', 'Maya.+', 'bin', 'maya.exe'],
                 label='Maya',
                 applicationIdentifier='maya_{version}',
                 icon='maya',
-                variant='{version}'
+                variant='{version}',
+                versionExpression=maya_version_expression
             ))
 
         elif 'linux' in sys.platform:
@@ -207,16 +215,16 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
                 prefix = maya_location
 
             maya_version_expression = re.compile(
-                r'maya(?P<version>\d{4})'
+                r'maya(?P<version>{})'.format('|'.join(versions))
             )
 
             applications.extend(self._searchFilesystem(
                 expression=prefix + ['bin', 'maya$'],
-                versionExpression=maya_version_expression,
                 label='Maya',
                 applicationIdentifier='maya_{version}',
                 icon='maya',
-                variant='{version}'
+                variant='{version}',
+                versionExpression=maya_version_expression
             ))
 
         self.logger.debug(
@@ -252,18 +260,19 @@ class ApplicationLauncher(ftrack_connect.application.ApplicationLauncher):
         task = ftrack.Task(entity['entityId'])
         taskParent = task.getParent()
 
-        try:
-            environment['FS'] = str(int(taskParent.getFrameStart()))
-        except Exception:
-            environment['FS'] = '1'
-
-        try:
-            environment['FE'] = str(int(taskParent.getFrameEnd()))
-        except Exception:
-            environment['FE'] = '1'
+        frameRange = self.applicationStore.arkFt.getFrameRange(taskParent)
+        environment['FS'] = frameRange.get('start')
+        environment['FE'] = frameRange.get('end')
 
         environment['FTRACK_TASKID'] = task.getId()
         environment['FTRACK_SHOTID'] = task.get('parent_id')
+
+        taskFile = self.applicationStore.arkFt.getHighestOrNewFilename(
+            environment['FTRACK_TASKID'],
+            'mb',
+            'nar'
+        )
+        application['launchArguments'] = ['-file', taskFile]
 
         maya_connect_scripts = os.path.join(self.plugin_path, 'scripts')
         maya_connect_plugins = os.path.join(self.plugin_path, 'plug_ins')
