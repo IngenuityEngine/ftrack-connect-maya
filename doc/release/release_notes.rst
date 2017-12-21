@@ -7,7 +7,15 @@
 Release Notes
 *************
 
-.. release:: upcoming
+.. release:: 1.1.1
+    :date: 2017-12-14
+
+    .. change:: fixed
+        :tags: Compatibility
+
+        Integration does not load in Maya 2018 on windows.
+
+
     .. change:: new
        :tags: Logging
 
