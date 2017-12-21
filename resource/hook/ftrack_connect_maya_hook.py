@@ -257,8 +257,10 @@ class ApplicationLauncher(ftrack_connect.application.ApplicationLauncher):
         )._getApplicationEnvironment(application, context)
 
         entity = context['selection'][0]
-        task = self.session.query('Task where id is "{}"'.format(entity['entityId'])).one()
-        taskParent = task.get('parent')
+        task = ftrack.Task(entity['entityId'])
+        taskParent = task.getParent()
+        # task = self.session.query('Task where id is "{}"'.format(entity['entityId'])).one()
+        # taskParent = task.get('parent')
 
         frameRange = self.applicationStore.arkFt.getFrameRange(taskParent)
         environment['FS'] = frameRange.get('start')
@@ -273,28 +275,28 @@ class ApplicationLauncher(ftrack_connect.application.ApplicationLauncher):
             'nar'
         )
    #------------------------
-        # this should be ie.la.ramburglar
-        location = self.session.pick_location()
+        # # this should be ie.la.ramburglar
+        # location = self.session.pick_location()
 
-        # this is the path of the task directory
-        path = location.get_entity_filesystem_path(task)
+        # # this is the path of the task directory
+        # path = location.get_entity_filesystem_path(task)
 
-        # hardcoded for now
-        username = self.session.api_user
-        initials = self.session.query(
-            'User where username is "{}"'.format(username)
-        ).one()['custom_attributes']['initials']
+        # # hardcoded for now
+        # username = self.session.api_user
+        # initials = self.session.query(
+        #     'User where username is "{}"'.format(username)
+        # ).one()['custom_attributes']['initials']
 
-        taskFilePrefix = location.get_filename(task)
-        taskFilePrefix = taskFilePrefix.format(
-            version='v0001',
-            initials=initials,
-            ext=self.extension)
-        taskFile = os.path.join(path, taskFilePrefix)
-        taskFile = self.applicationStore.arkFt.startNewTask(taskFile)
-        print 'taskFile', taskFile
+        # taskFilePrefix = location.get_filename(task)
+        # taskFilePrefix = taskFilePrefix.format(
+        #     version='v0001',
+        #     initials=initials,
+        #     ext=self.extension)
+        # taskFile = os.path.join(path, taskFilePrefix)
+        # taskFile = self.applicationStore.arkFt.startNewTask(taskFile)
+        # print 'taskFile', taskFile
 
-        application['launchArguments'] = ['-file', taskFile]
+        # application['launchArguments'] = ['-file', taskFile]
     #------------------------
 
         maya_connect_scripts = os.path.join(self.plugin_path, 'scripts')
