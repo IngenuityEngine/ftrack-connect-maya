@@ -7,11 +7,14 @@ import pprint
 import logging
 import re
 import os
+import traceback
 
-import ftrack
+import ftrack_api
 import ftrack_connect.application
 import ftrack_connect_maya
 
+import arkFTrack
+import cOS
 import settingsManager
 globalSettings = settingsManager.globalSettings()
 
@@ -20,7 +23,7 @@ class LaunchApplicationAction(object):
 
     identifier = 'ftrack-connect-launch-maya'
 
-    def __init__(self, application_store, launcher):
+    def __init__(self, application_store, launcher, session):
         '''Initialise action with *applicationStore* and *launcher*.
 
         *applicationStore* should be an instance of
@@ -38,6 +41,7 @@ class LaunchApplicationAction(object):
 
         self.application_store = application_store
         self.launcher = launcher
+        self.session = session
 
     def is_valid_selection(self, selection):
         '''Return true if the selection is valid.'''
@@ -48,23 +52,26 @@ class LaunchApplicationAction(object):
             return False
 
         entity = selection[0]
-        task = ftrack.Task(entity['entityId'])
+        task = self.session.get(
+            'Task', entity['entityId']
+        )
 
-        if task.getObjectType() != 'Task':
+        if task is None:
             return False
 
         return True
 
     def register(self):
         '''Register discover actions on logged in user.'''
-        ftrack.EVENT_HUB.subscribe(
+        self.session.event_hub.subscribe(
             'topic=ftrack.action.discover and source.user.username={0}'.format(
                 getpass.getuser()
             ),
-            self.discover
+            self.discover,
+            priority=10
         )
 
-        ftrack.EVENT_HUB.subscribe(
+        self.session.event_hub.subscribe(
             'topic=ftrack.action.launch and source.user.username={0} '
             'and data.actionIdentifier={1}'.format(
                 getpass.getuser(), self.identifier
@@ -72,7 +79,7 @@ class LaunchApplicationAction(object):
             self.launch
         )
 
-        ftrack.EVENT_HUB.subscribe(
+        self.session.event_hub.subscribe(
             'topic=ftrack.connect.plugin.debug-information',
             self.get_version_information
         )
@@ -239,11 +246,14 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
 class ApplicationLauncher(ftrack_connect.application.ApplicationLauncher):
     '''Custom launcher to modify environment before launch.'''
 
-    def __init__(self, application_store, plugin_path):
+    extension = 'mb'
+
+    def __init__(self, application_store, plugin_path, session):
         '''.'''
         super(ApplicationLauncher, self).__init__(application_store)
 
         self.plugin_path = plugin_path
+        self.session = session
 
     def _getApplicationEnvironment(
         self, application, context=None
@@ -257,47 +267,23 @@ class ApplicationLauncher(ftrack_connect.application.ApplicationLauncher):
         )._getApplicationEnvironment(application, context)
 
         entity = context['selection'][0]
-        task = ftrack.Task(entity['entityId'])
-        taskParent = task.getParent()
-        # task = self.session.query('Task where id is "{}"'.format(entity['entityId'])).one()
-        # taskParent = task.get('parent')
+        task = self.session.query('Task where id is "{}"'.format(entity['entityId'])).one()
+        taskParent = task.get('parent')
 
-        frameRange = self.applicationStore.arkFt.getFrameRange(taskParent)
-        environment['FS'] = frameRange.get('start')
-        environment['FE'] = frameRange.get('end')
+        frameRange = arkFTrack.arkFtrack.getFrameRange(taskParent)
+        environment['FS'] = frameRange.get('start_frame')
+        environment['FE'] = frameRange.get('end_frame')
 
-        environment['FTRACK_TASKID'] = task.getId()
+        environment['FTRACK_TASKID'] = task.get('id')
         environment['FTRACK_SHOTID'] = task.get('parent_id')
 
-        taskFile = self.applicationStore.arkFt.getHighestOrNewFilename(
-            environment['FTRACK_TASKID'],
-            'mb',
-            'nar'
-        )
-   #------------------------
-        # # this should be ie.la.ramburglar
-        # location = self.session.pick_location()
-
-        # # this is the path of the task directory
-        # path = location.get_entity_filesystem_path(task)
-
-        # # hardcoded for now
-        # username = self.session.api_user
-        # initials = self.session.query(
-        #     'User where username is "{}"'.format(username)
-        # ).one()['custom_attributes']['initials']
-
-        # taskFilePrefix = location.get_filename(task)
-        # taskFilePrefix = taskFilePrefix.format(
-        #     version='v0001',
-        #     initials=initials,
-        #     ext=self.extension)
-        # taskFile = os.path.join(path, taskFilePrefix)
-        # taskFile = self.applicationStore.arkFt.startNewTask(taskFile)
-        # print 'taskFile', taskFile
-
-        # application['launchArguments'] = ['-file', taskFile]
-    #------------------------
+        try:
+            location = self.session.pick_location()
+            taskFile = location.getHighestOrNewFilename(task, extension=self.extension)
+            print 'opening file:', taskFile
+            application['launchArguments'] = ['-file', taskFile]
+        except:
+            traceback.print_exc()
 
         maya_connect_scripts = os.path.join(self.plugin_path, 'scripts')
         maya_connect_plugins = os.path.join(self.plugin_path, 'plug_ins')
@@ -326,12 +312,17 @@ class ApplicationLauncher(ftrack_connect.application.ApplicationLauncher):
         return environment
 
 
-def register(registry, **kw):
+def register(session, **kw):
     '''Register hooks.'''
-    # Validate that registry is the event handler registry. If not,
-    # assume that register is being called to regiter Locations or from a new
-    # or incompatible API, and return without doing anything.
-    if registry is not ftrack.EVENT_HANDLERS:
+
+    logger = logging.getLogger(
+        'ftrack_plugin:ftrack_connect_maya_hook.register'
+    )
+
+    # Validate that session is an instance of ftrack_api.Session. If not,
+    # assume that register is being called from an old or incompatible API and
+    # return without doing anything.
+    if not isinstance(session, ftrack_api.session.Session):
         return
 
     # Create store containing applications.
@@ -346,9 +337,10 @@ def register(registry, **kw):
                     os.path.dirname(__file__), '..', 'ftrack_connect_maya'
                 )
             )
-        )
+        ),
+        session=session
     )
 
     # Create action and register to respond to discover and launch actions.
-    action = LaunchApplicationAction(application_store, launcher)
+    action = LaunchApplicationAction(application_store, launcher, session)
     action.register()
