@@ -180,7 +180,7 @@ class ApplicationStore(ftrack_connect.application.ApplicationStore):
 
         '''
         applications = []
-        versions = [v.replace('.', '\.') for v in globalSettings.get('FTRACK_CONNECT').get('MAYA')]
+        versions = [v.replace('.', '\.') for v in globalSettings.get('FTRACK_CONNECT').get('MAYA').get('version')]
 
         if sys.platform == 'darwin':
             prefix = ['/', 'Applications']
