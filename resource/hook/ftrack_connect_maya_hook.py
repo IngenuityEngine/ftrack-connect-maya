@@ -52,9 +52,7 @@ class LaunchApplicationAction(object):
             return False
 
         entity = selection[0]
-        task = self.session.get(
-            'Task', entity['entityId']
-        )
+        task = self.session.get('Task', entity['entityId'])
 
         if task is None:
             return False
