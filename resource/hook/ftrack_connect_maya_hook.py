@@ -63,7 +63,7 @@ class LaunchApplicationAction(object):
         '''Register discover actions on logged in user.'''
         self.session.event_hub.subscribe(
             'topic=ftrack.action.discover and source.user.username={0}'.format(
-                getpass.getuser()
+                self.session.api_user
             ),
             self.discover,
             priority=10
@@ -72,7 +72,7 @@ class LaunchApplicationAction(object):
         self.session.event_hub.subscribe(
             'topic=ftrack.action.launch and source.user.username={0} '
             'and data.actionIdentifier={1}'.format(
-                getpass.getuser(), self.identifier
+                self.session.api_user, self.identifier
             ),
             self.launch
         )
@@ -265,36 +265,37 @@ class ApplicationLauncher(ftrack_connect.application.ApplicationLauncher):
         entity = context['selection'][0]
         task = self.session.query('Task where id is "{}"'.format(entity['entityId'])).one()
 
-        frameRange = arkFTrack.ftrackUtil.getFrameRange(task.get('parent'))
-        environment['FS'] = frameRange.get('start_frame')
-        environment['FE'] = frameRange.get('end_frame')
+        # most of the environment setup has been moved to launchTask
+        # frameRange = arkFTrack.ftrackUtil.getFrameRange(task.get('parent'))
+        # environment['FS'] = frameRange.get('start_frame')
+        # environment['FE'] = frameRange.get('end_frame')
 
         environment['FTRACK_TASKID'] = task.get('id')
         environment['FTRACK_SHOTID'] = task.get('parent_id')
 
-        maya_connect_scripts = os.path.join(self.plugin_path, 'scripts')
-        maya_connect_plugins = os.path.join(self.plugin_path, 'plug_ins')
+        # maya_connect_scripts = os.path.join(self.plugin_path, 'scripts')
+        # maya_connect_plugins = os.path.join(self.plugin_path, 'plug_ins')
 
-        environment = ftrack_connect.application.appendPath(
-            maya_connect_scripts,
-            'PYTHONPATH',
-            environment
-        )
-        environment = ftrack_connect.application.appendPath(
-            maya_connect_scripts,
-            'MAYA_SCRIPT_PATH',
-            environment
-        )
-        environment = ftrack_connect.application.appendPath(
-            maya_connect_plugins,
-            'MAYA_PLUG_IN_PATH',
-            environment
-        )
+        # environment = ftrack_connect.application.appendPath(
+        #     maya_connect_scripts,
+        #     'PYTHONPATH',
+        #     environment
+        # )
+        # environment = ftrack_connect.application.appendPath(
+        #     maya_connect_scripts,
+        #     'MAYA_SCRIPT_PATH',
+        #     environment
+        # )
+        # environment = ftrack_connect.application.appendPath(
+        #     maya_connect_plugins,
+        #     'MAYA_PLUG_IN_PATH',
+        #     environment
+        # )
 
-        if float(application['version']) < 2017:
-            environment['QT_PREFERRED_BINDING'] = 'PySide'
-        else:
-            environment['QT_PREFERRED_BINDING'] = 'PySide2'
+        # if float(application['version']) < 2017:
+        #     environment['QT_PREFERRED_BINDING'] = 'PySide'
+        # else:
+        #     environment['QT_PREFERRED_BINDING'] = 'PySide2'
 
         return environment
 
