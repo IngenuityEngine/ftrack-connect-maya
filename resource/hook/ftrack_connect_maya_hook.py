@@ -63,7 +63,7 @@ class LaunchApplicationAction(object):
         '''Register discover actions on logged in user.'''
         self.session.event_hub.subscribe(
             'topic=ftrack.action.discover and source.user.username={0}'.format(
-                getpass.getuser()
+                self.session.api_user
             ),
             self.discover,
             priority=10
@@ -72,7 +72,7 @@ class LaunchApplicationAction(object):
         self.session.event_hub.subscribe(
             'topic=ftrack.action.launch and source.user.username={0} '
             'and data.actionIdentifier={1}'.format(
-                getpass.getuser(), self.identifier
+                self.session.api_user, self.identifier
             ),
             self.launch
         )
